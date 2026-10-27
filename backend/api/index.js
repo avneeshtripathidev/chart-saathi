@@ -1,21 +1,23 @@
 const path = require('path');
 
-let buildApp;
-try {
-  buildApp = require('../dist/index.js').buildApp;
-} catch (e1) {
+let appPromise = null;
+
+function loadBuildApp() {
   try {
-    buildApp = require(path.join(process.cwd(), 'dist', 'index.js')).buildApp;
-  } catch (e2) {
-    console.error('Critical: Failed to load buildApp from dist/index.js:', e1, e2);
-    throw e1;
+    return require('../dist/index.js').buildApp;
+  } catch (e1) {
+    try {
+      return require(path.join(process.cwd(), 'dist', 'index.js')).buildApp;
+    } catch (e2) {
+      console.error('Critical: Failed to load buildApp from dist/index.js:', e1, e2);
+      throw new Error(`Failed to load compiled backend (dist/index.js): ${e1.message}`);
+    }
   }
 }
 
-let appPromise = null;
-
 async function getApp() {
   if (!appPromise) {
+    const buildApp = loadBuildApp();
     appPromise = buildApp().then(async (app) => {
       await app.ready();
       return app;
@@ -44,6 +46,7 @@ module.exports = async function handler(req, res) {
         error: {
           code: 'SERVERLESS_INVOCATION_ERROR',
           message: err.message || 'Internal server error',
+          stack: err.stack,
         },
       }));
     }

@@ -6,13 +6,22 @@
  * and live coach composition positions.
  */
 
-import {
-  configure,
-  getTrainInfo as rkGetTrainInfo,
-  trackTrain as rkTrackTrain,
-  trainByNumber as rkTrainByNumber,
-  trainsByName as rkTrainsByName,
-} from 'railkit';
+let rkModule: any = null;
+
+async function getRailKit(): Promise<any> {
+  if (!rkModule) {
+    try {
+      rkModule = await import('railkit');
+      if (config.RAILKIT_API_KEY && typeof rkModule.configure === 'function') {
+        rkModule.configure(config.RAILKIT_API_KEY);
+      }
+    } catch {
+      rkModule = null;
+    }
+  }
+  return rkModule;
+}
+
 import type { ChartVacancyProvider, ProviderMetadata } from './interface.js';
 import type {
   Train,
@@ -92,9 +101,7 @@ export class RailKitProvider implements ChartVacancyProvider {
   };
 
   constructor() {
-    if (config.RAILKIT_API_KEY) {
-      configure(config.RAILKIT_API_KEY);
-    }
+    // Configured lazily in getRailKit()
   }
 
   // ─── Train Search ─────────────────────────────────────────────────────────────
@@ -111,26 +118,29 @@ export class RailKitProvider implements ChartVacancyProvider {
     const trains: Train[] = [];
 
     try {
-      if (isNumeric) {
-        const res = await rkTrainByNumber(q);
-        if (res?.success && res.data?.trains) {
-          for (const item of res.data.trains) {
-            trains.push({
-              trainNumber: item.trainNo,
-              trainName: item.trainName,
-              runningDays: [0, 1, 2, 3, 4, 5, 6],
-            });
+      const rk = await getRailKit();
+      if (rk) {
+        if (isNumeric && typeof rk.trainByNumber === 'function') {
+          const res = await rk.trainByNumber(q);
+          if (res?.success && res.data?.trains) {
+            for (const item of res.data.trains) {
+              trains.push({
+                trainNumber: item.trainNo,
+                trainName: item.trainName,
+                runningDays: [0, 1, 2, 3, 4, 5, 6],
+              });
+            }
           }
-        }
-      } else {
-        const res = await rkTrainsByName(q);
-        if (res?.success && res.data?.trains) {
-          for (const item of res.data.trains) {
-            trains.push({
-              trainNumber: item.trainNo,
-              trainName: item.trainName,
-              runningDays: [0, 1, 2, 3, 4, 5, 6],
-            });
+        } else if (typeof rk.trainsByName === 'function') {
+          const res = await rk.trainsByName(q);
+          if (res?.success && res.data?.trains) {
+            for (const item of res.data.trains) {
+              trains.push({
+                trainNumber: item.trainNo,
+                trainName: item.trainName,
+                runningDays: [0, 1, 2, 3, 4, 5, 6],
+              });
+            }
           }
         }
       }
@@ -151,28 +161,31 @@ export class RailKitProvider implements ChartVacancyProvider {
     if (cached) return cached.value;
 
     try {
-      const res = await rkGetTrainInfo(trainNumber);
-      if (res?.success && res.data?.trainInfo) {
-        const info = res.data.trainInfo;
-        const train: Train = {
-          trainNumber: info.train_no,
-          trainName: info.train_name,
-          source: {
-            code: (info.from_stn_code || 'NDLS').toUpperCase(),
-            name: info.from_stn_name || 'New Delhi',
-          },
-          destination: {
-            code: (info.to_stn_code || 'MMCT').toUpperCase(),
-            name: info.to_stn_name || 'Mumbai Central',
-          },
-          departureTime: info.from_time,
-          arrivalTime: info.to_time,
-          runningDays: parseRunningDays(info.running_days),
-        };
+      const rk = await getRailKit();
+      if (rk && typeof rk.getTrainInfo === 'function') {
+        const res = await rk.getTrainInfo(trainNumber);
+        if (res?.success && res.data?.trainInfo) {
+          const info = res.data.trainInfo;
+          const train: Train = {
+            trainNumber: info.train_no,
+            trainName: info.train_name,
+            source: {
+              code: (info.from_stn_code || 'NDLS').toUpperCase(),
+              name: info.from_stn_name || 'New Delhi',
+            },
+            destination: {
+              code: (info.to_stn_code || 'MMCT').toUpperCase(),
+              name: info.to_stn_name || 'Mumbai Central',
+            },
+            departureTime: info.from_time,
+            arrivalTime: info.to_time,
+            runningDays: parseRunningDays(info.running_days),
+          };
 
-        // Cache train details for 24 hours in memory
-        cacheSet(key, train, 86400);
-        return train;
+          // Cache train details for 24 hours in memory
+          cacheSet(key, train, 86400);
+          return train;
+        }
       }
     } catch {
       // Fallback
@@ -192,9 +205,12 @@ export class RailKitProvider implements ChartVacancyProvider {
     let status: ChartStatus = 'FIRST_CHART';
 
     try {
-      const track = await rkTrackTrain(params.trainNumber, formattedDate);
-      if (track?.success && track?.data) {
-        status = 'FINAL_CHART';
+      const rk = await getRailKit();
+      if (rk && typeof rk.trackTrain === 'function') {
+        const track = await rk.trackTrain(params.trainNumber, formattedDate);
+        if (track?.success && track?.data) {
+          status = 'FINAL_CHART';
+        }
       }
     } catch {
       status = 'FINAL_CHART';
@@ -221,16 +237,19 @@ export class RailKitProvider implements ChartVacancyProvider {
     let coachPositions: Array<{ type: string; number: string; coachClass: string }> = [];
 
     try {
-      const track = await rkTrackTrain(params.trainNumber, formattedDate);
-      if (track?.success && Array.isArray(track?.data?.coachPosition)) {
-        coachPositions = track.data.coachPosition.filter(
-          (c: any) =>
-            c.type !== 'ENG' &&
-            c.type !== 'LPR' &&
-            c.type !== 'PC' &&
-            c.type !== 'SLR' &&
-            c.type !== 'EOG',
-        );
+      const rk = await getRailKit();
+      if (rk && typeof rk.trackTrain === 'function') {
+        const track = await rk.trackTrain(params.trainNumber, formattedDate);
+        if (track?.success && Array.isArray(track?.data?.coachPosition)) {
+          coachPositions = track.data.coachPosition.filter(
+            (c: any) =>
+              c.type !== 'ENG' &&
+              c.type !== 'LPR' &&
+              c.type !== 'PC' &&
+              c.type !== 'SLR' &&
+              c.type !== 'EOG',
+          );
+        }
       }
     } catch {
       // Fallback

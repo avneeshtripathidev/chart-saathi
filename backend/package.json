@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "ChartSaathi backend API – Indian Railway Chart Vacancy service",
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",

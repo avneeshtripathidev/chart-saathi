@@ -25,8 +25,11 @@ const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
   console.error('❌ Invalid environment configuration:');
   console.error(parsed.error.flatten().fieldErrors);
-  process.exit(1);
+  if (!process.env.VERCEL) {
+    process.exit(1);
+  }
 }
 
-export const config = parsed.data;
+export const config = parsed.success ? parsed.data : envSchema.parse({});
 export type Config = typeof config;
+
