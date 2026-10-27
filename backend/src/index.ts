@@ -162,13 +162,14 @@ export async function getApp() {
 
 export default async function handler(req: any, res: any) {
   try {
-    const originalUrl = req.headers['x-forwarded-uri'] || req.headers['x-matched-path'] || req.url;
+    const headers = req?.headers || {};
+    const originalUrl = headers['x-forwarded-uri'] || headers['x-matched-path'] || req?.url || '/';
     const app = await getApp();
     const response = await app.inject({
-      method: req.method || 'GET',
-      url: originalUrl || '/',
-      headers: req.headers,
-      payload: req.body,
+      method: req?.method || 'GET',
+      url: originalUrl,
+      headers: headers,
+      payload: req?.body,
     });
 
     res.statusCode = response.statusCode;
@@ -179,9 +180,11 @@ export default async function handler(req: any, res: any) {
     }
     return res.end(response.payload);
   } catch (err: any) {
-    if (!res.headersSent) {
+    if (res && !res.headersSent) {
       res.statusCode = 500;
-      res.setHeader('Content-Type', 'application/json');
+      if (typeof res.setHeader === 'function') {
+        res.setHeader('Content-Type', 'application/json');
+      }
       res.end(JSON.stringify({
         success: false,
         error: {
@@ -206,9 +209,6 @@ async function start() {
   }
 }
 
-export { buildApp };
+export { buildApp, start };
 
-// Only listen on port when running standalone locally in development
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-  start();
-}
+
