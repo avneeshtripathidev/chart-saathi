@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc && esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=api/index.js --external:fastify --external:@fastify/cors --external:@fastify/rate-limit --external:railkit",
+    "build": "tsc && esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=api/index.js --external:fastify --external:@fastify/cors --external:@fastify/rate-limit --external:railkit --footer:js=\"module.exports = handler; module.exports.default = handler;\"",
     "start": "node dist/server.js",
     "test": "jest --passWithNoTests",
     "test:unit": "jest tests/unit --passWithNoTests",

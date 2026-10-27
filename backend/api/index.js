@@ -28730,3 +28730,4 @@ async function start() {
   getApp,
   start
 });
+module.exports = handler; module.exports.default = handler;
