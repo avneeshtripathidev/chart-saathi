@@ -140,8 +140,37 @@ export async function getApp() {
 }
 
 export default async function handler(req: any, res: any) {
-  const app = await getApp();
-  app.server.emit('request', req, res);
+  try {
+    const originalUrl = req.headers['x-forwarded-uri'] || req.headers['x-matched-path'] || req.url;
+    const app = await getApp();
+    const response = await app.inject({
+      method: req.method || 'GET',
+      url: originalUrl || '/',
+      headers: req.headers,
+      payload: req.body,
+    });
+
+    res.statusCode = response.statusCode;
+    for (const [key, value] of Object.entries(response.headers)) {
+      if (value !== undefined) {
+        res.setHeader(key, value);
+      }
+    }
+    return res.end(response.payload);
+  } catch (err: any) {
+    if (!res.headersSent) {
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({
+        success: false,
+        error: {
+          code: 'SERVERLESS_HANDLER_ERROR',
+          message: err?.message || 'Internal server error',
+          stack: err?.stack,
+        },
+      }));
+    }
+  }
 }
 
 async function start() {

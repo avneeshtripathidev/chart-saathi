@@ -28,14 +28,26 @@ async function getApp() {
 
 module.exports = async function handler(req, res) {
   try {
-    // Restore original URL if Vercel internal rewrite passed it via header
-    const originalUrl = req.headers['x-forwarded-uri'] || req.headers['x-matched-path'];
-    if (typeof originalUrl === 'string' && originalUrl) {
-      req.url = originalUrl;
-    }
+    const originalUrl = req.headers['x-forwarded-uri'] || req.headers['x-matched-path'] || req.url;
 
     const app = await getApp();
-    app.server.emit('request', req, res);
+
+    const response = await app.inject({
+      method: req.method || 'GET',
+      url: originalUrl || '/',
+      headers: req.headers,
+      payload: req.body,
+    });
+
+    res.statusCode = response.statusCode;
+
+    for (const [key, value] of Object.entries(response.headers)) {
+      if (value !== undefined) {
+        res.setHeader(key, value);
+      }
+    }
+
+    return res.end(response.payload);
   } catch (err) {
     console.error('Fastify serverless invocation error:', err);
     if (!res.headersSent) {
