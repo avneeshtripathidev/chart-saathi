@@ -26,7 +26,10 @@ build/
 
 # Expo & React Native
 .expo/
+!.expo/types/
+!*/.expo/types/
 */.expo/
+!*/.expo/types/
 *.jks
 *.p8
 *.p12
