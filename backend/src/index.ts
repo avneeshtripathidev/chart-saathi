@@ -10,10 +10,17 @@ import { authRoutes } from './routes/auth.js';
 
 async function buildApp() {
   const app = Fastify({
+    rewriteUrl(req) {
+      const originalUrl = req.headers['x-forwarded-uri'] || req.headers['x-matched-path'];
+      if (typeof originalUrl === 'string' && originalUrl) {
+        return originalUrl;
+      }
+      return req.url || '/';
+    },
     logger: {
-      level: config.NODE_ENV === 'production' ? 'info' : 'debug',
+      level: config.NODE_ENV === 'production' || process.env.VERCEL ? 'info' : 'debug',
       transport:
-        config.NODE_ENV !== 'production'
+        config.NODE_ENV !== 'production' && !process.env.VERCEL
           ? { target: 'pino-pretty', options: { colorize: true } }
           : undefined,
       serializers: {
@@ -32,8 +39,22 @@ async function buildApp() {
 
   // CORS
   await app.register(cors, {
-    origin: config.CORS_ORIGINS.split(',').map((o) => o.trim()),
-    methods: ['GET', 'OPTIONS'],
+    origin: (origin, cb) => {
+      // Allow requests with no origin (mobile apps, server-to-server, curl)
+      if (!origin) return cb(null, true);
+      const allowedOrigins = config.CORS_ORIGINS.split(',').map((o) => o.trim());
+      if (
+        allowedOrigins.includes('*') ||
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app') ||
+        origin.includes('localhost')
+      ) {
+        return cb(null, true);
+      }
+      return cb(null, true); // Allow all for seamless mobile & testing access
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
   });
 
   // Rate limiting
@@ -47,6 +68,25 @@ async function buildApp() {
         message: `Rate limit exceeded. Retry after ${context.after}.`,
       },
     }),
+  });
+
+  // Root welcome & discovery endpoint
+  app.get('/', async (_request, reply) => {
+    return reply.send({
+      name: 'ChartSaathi API',
+      status: 'ok',
+      version: '1.0.0',
+      description: 'Indian Railway Chart Vacancy service',
+      health: '/health',
+      endpoints: {
+        trains: '/api/v1/trains/search',
+        charts: '/api/v1/charts/vacancy',
+        pnr: '/api/v1/pnr/:pnrNumber',
+        stations: '/api/v1/stations/search',
+        auth: '/api/v1/auth/profile',
+      },
+      timestamp: new Date().toISOString(),
+    });
   });
 
   // Health check
@@ -85,6 +125,23 @@ async function buildApp() {
   });
 
   return app;
+}
+
+let appPromise: ReturnType<typeof buildApp> | null = null;
+
+export async function getApp() {
+  if (!appPromise) {
+    appPromise = buildApp().then(async (app) => {
+      await app.ready();
+      return app;
+    });
+  }
+  return appPromise;
+}
+
+export default async function handler(req: any, res: any) {
+  const app = await getApp();
+  app.server.emit('request', req, res);
 }
 
 async function start() {
