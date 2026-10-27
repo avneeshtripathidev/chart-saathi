@@ -104,6 +104,12 @@ describe('Auth Validation Utilities', () => {
     it('rejects non-numeric characters', () => {
       expect(validateOtp('12a456').isValid).toBe(false);
       expect(validateOtp('abcdef').isValid).toBe(false);
+      expect(validateOtp('12 456').isValid).toBe(false);
+      expect(validateOtp('12-456').isValid).toBe(false);
+    });
+
+    it('accepts valid 6-digit codes with leading or trailing whitespace when trimmed', () => {
+      expect(validateOtp('  654321  ').isValid).toBe(true);
     });
   });
 });

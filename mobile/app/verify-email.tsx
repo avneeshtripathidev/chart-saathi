@@ -10,9 +10,9 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { KeyRound, ArrowRight, RotateCcw, ArrowLeft, AlertCircle } from 'lucide-react-native';
+import { KeyRound, ArrowRight, RotateCcw, ArrowLeft, AlertCircle, CheckCircle2, Mail } from 'lucide-react-native';
 import { colors, spacing, borderRadius, typography, shadows } from '../src/utils/theme';
 import { useAuth } from '../src/context/AuthContext';
 import { validateOtp } from '../src/utils/authValidation';
@@ -20,13 +20,40 @@ import { validateOtp } from '../src/utils/authValidation';
 const RESEND_COOLDOWN_SECONDS = 60;
 
 export default function VerifyEmailScreen() {
-  const { pendingEmail, verifyEmailOtp, sendEmailOtp, isProfileComplete } = useAuth();
+  const params = useLocalSearchParams<{
+    email?: string;
+    isSignup?: string;
+    unconfirmed?: string;
+  }>();
+
+  const {
+    pendingEmail,
+    setPendingEmail,
+    verifyEmailOtp,
+    resendEmailOtp,
+    sendEmailOtp,
+    isProfileComplete,
+  } = useAuth();
+
+  const activeEmail = (params.email || pendingEmail || '').trim().toLowerCase();
+  const isSignupFlow = params.isSignup !== 'false';
+  const isUnconfirmedSignIn = params.unconfirmed === 'true';
+
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(RESEND_COOLDOWN_SECONDS);
+  const [isInputFocused, setIsInputFocused] = useState(true);
   const inputRef = useRef<TextInput>(null);
+
+  // Sync route params email into AuthContext pendingEmail if missing
+  useEffect(() => {
+    if (params.email && params.email !== pendingEmail) {
+      setPendingEmail(params.email);
+    }
+  }, [params.email, pendingEmail, setPendingEmail]);
 
   // Countdown timer for resend
   useEffect(() => {
@@ -37,7 +64,7 @@ export default function VerifyEmailScreen() {
     return () => clearInterval(interval);
   }, [countdown]);
 
-  // Focus input automatically
+  // Automatically focus input on mount
   useEffect(() => {
     const timer = setTimeout(() => {
       inputRef.current?.focus();
@@ -48,66 +75,111 @@ export default function VerifyEmailScreen() {
   const handleVerifyOtp = async () => {
     try {
       setErrorMessage(null);
-      if (!pendingEmail) {
-        setErrorMessage('Email address missing. Please go back and enter your email again.');
+      setSuccessMessage(null);
+
+      if (!activeEmail) {
+        setErrorMessage('Email address missing. Please go back to login and re-enter your email.');
         return;
       }
 
       const validation = validateOtp(otp);
       if (!validation.isValid) {
-        setErrorMessage(validation.error || 'Please enter the 6-digit code.');
+        setErrorMessage(validation.error || 'Please enter the complete 6-digit verification code.');
         return;
       }
 
       setIsVerifying(true);
-      const { error } = await verifyEmailOtp(pendingEmail, otp);
+
+      // Verify OTP with Supabase:
+      // When from signup: supabase.auth.verifyOtp({ email, token, type: 'signup' })
+      // When from passwordless: supabase.auth.verifyOtp({ email, token, type: 'email' })
+      const otpType = isSignupFlow ? 'signup' : 'email';
+      const { error } = await verifyEmailOtp(activeEmail, otp, otpType);
 
       if (error) {
-        // Distinguish expired / invalid error messages cleanly
-        const msg = error.message.toLowerCase();
+        const msg = (error.message || '').toLowerCase();
         if (msg.includes('expired')) {
-          setErrorMessage('Verification code has expired. Please request a new code.');
-        } else if (msg.includes('invalid') || msg.includes('token')) {
-          setErrorMessage('Invalid verification code. Please check and try again.');
+          setErrorMessage('Verification code has expired. Please tap Resend Code below.');
+        } else if (
+          msg.includes('invalid') ||
+          msg.includes('token') ||
+          msg.includes('incorrect') ||
+          msg.includes('not recognized')
+        ) {
+          setErrorMessage('Invalid 6-digit verification code. Please check and try again.');
+        } else if (msg.includes('rate') || msg.includes('limit') || msg.includes('too many')) {
+          setErrorMessage('Too many verification attempts. Please wait a moment before trying again.');
+        } else if (
+          msg.includes('network') ||
+          msg.includes('fetch') ||
+          msg.includes('failed to fetch') ||
+          msg.includes('connection')
+        ) {
+          setErrorMessage('Network connection error. Please verify your internet connection and try again.');
         } else {
-          setErrorMessage(error.message || 'Verification failed. Please try again.');
+          setErrorMessage(error.message || 'Verification could not be completed. Please try again.');
         }
         return;
       }
 
-      // Successful verification -> navigation handled by root layout or direct push
-      if (isProfileComplete) {
-        router.replace('/');
-      } else {
-        router.replace('/complete-profile');
-      }
+      // Success
+      setSuccessMessage('Email verified successfully! Setting up your session...');
+
+      // Redirect after brief visual confirmation
+      setTimeout(() => {
+        if (isProfileComplete) {
+          router.replace('/');
+        } else {
+          router.replace('/complete-profile');
+        }
+      }, 400);
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Verification could not be completed.');
+      setErrorMessage(err?.message || 'Verification could not be completed. Please try again.');
     } finally {
       setIsVerifying(false);
     }
   };
 
   const handleResendOtp = async () => {
-    if (countdown > 0 || isResending || !pendingEmail) return;
+    if (countdown > 0 || isResending || !activeEmail) return;
+
     try {
       setErrorMessage(null);
+      setSuccessMessage(null);
       setIsResending(true);
-      const { error } = await sendEmailOtp(pendingEmail);
-      if (error) {
-        setErrorMessage(error.message || 'Could not resend code. Please try again later.');
+
+      // Resend signup confirmation or passwordless OTP
+      let res: { error: Error | null };
+      if (isSignupFlow) {
+        res = await resendEmailOtp(activeEmail, 'signup');
+      } else {
+        res = await sendEmailOtp(activeEmail);
+      }
+
+      if (res.error) {
+        const msg = (res.error.message || '').toLowerCase();
+        if (msg.includes('rate') || msg.includes('limit') || msg.includes('60 seconds')) {
+          setErrorMessage('For security, you can only request a new code once every 60 seconds.');
+        } else if (msg.includes('network') || msg.includes('fetch')) {
+          setErrorMessage('Network error while resending code. Please check your connection.');
+        } else {
+          setErrorMessage(res.error.message || 'Failed to resend code. Please try again later.');
+        }
         return;
       }
+
+      setSuccessMessage('A fresh 6-digit verification code has been dispatched to your email.');
       setCountdown(RESEND_COOLDOWN_SECONDS);
       setOtp('');
+      inputRef.current?.focus();
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to resend code.');
+      setErrorMessage(err?.message || 'Failed to resend verification code.');
     } finally {
       setIsResending(false);
     }
   };
 
-  const handleChangeEmail = () => {
+  const handleBackToLogin = () => {
     router.replace('/login');
   };
 
@@ -121,15 +193,15 @@ export default function VerifyEmailScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Back button */}
+          {/* Back to Login / Change email button */}
           <TouchableOpacity
             style={styles.backButton}
-            onPress={handleChangeEmail}
+            onPress={handleBackToLogin}
             accessibilityRole="button"
-            accessibilityLabel="Change email address"
+            accessibilityLabel="Back to sign in"
           >
             <ArrowLeft size={18} color={colors.text.secondary} />
-            <Text style={styles.backText}>Change email</Text>
+            <Text style={styles.backText}>Change email / Sign in</Text>
           </TouchableOpacity>
 
           {/* Verification Card */}
@@ -140,13 +212,19 @@ export default function VerifyEmailScreen() {
 
             <Text style={styles.cardHeading}>Verify Your Email</Text>
             <Text style={styles.cardSubtitle}>
-              We sent a 6-digit verification code to
+              {isUnconfirmedSignIn
+                ? 'Your account email requires verification before signing in.'
+                : 'Enter the 6-digit verification code sent to:'}
             </Text>
+
             <View style={styles.emailPill}>
-              <Text style={styles.emailText}>{pendingEmail || 'your email address'}</Text>
+              <Mail size={14} color={colors.brand.secondary} />
+              <Text style={styles.emailText} numberOfLines={1}>
+                {activeEmail || 'your email address'}
+              </Text>
             </View>
 
-            {/* Error box */}
+            {/* Error message box */}
             {errorMessage && (
               <View style={styles.errorBox}>
                 <AlertCircle size={18} color={colors.brand.primary} style={{ marginTop: 2 }} />
@@ -154,49 +232,89 @@ export default function VerifyEmailScreen() {
               </View>
             )}
 
-            {/* OTP Input Field */}
+            {/* Success message box */}
+            {successMessage && (
+              <View style={styles.successBox}>
+                <CheckCircle2 size={18} color={colors.status.vacant} style={{ marginTop: 2 }} />
+                <Text style={styles.successText}>{successMessage}</Text>
+              </View>
+            )}
+
+            {/* 6-Digit OTP Interactive Display */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Enter 6-Digit Code</Text>
-              <TextInput
-                ref={inputRef}
-                style={styles.otpInput}
-                value={otp}
-                onChangeText={(text) => {
-                  const cleaned = text.replace(/\D/g, '').slice(0, 6);
-                  setOtp(cleaned);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                placeholder="• • • • • •"
-                placeholderTextColor={colors.text.tertiary}
-                keyboardType="number-pad"
-                maxLength={6}
-                autoFocus
-                editable={!isVerifying}
-                returnKeyType="done"
-                onSubmitEditing={handleVerifyOtp}
-              />
+
+              <View style={styles.otpWrapper}>
+                {/* Visual Segmented 6 Boxes */}
+                <View style={styles.boxesRow}>
+                  {[0, 1, 2, 3, 4, 5].map((index) => {
+                    const digit = otp[index] || '';
+                    const isCurrent =
+                      isInputFocused &&
+                      (index === otp.length || (index === 5 && otp.length === 6));
+                    return (
+                      <View
+                        key={index}
+                        style={[
+                          styles.digitBox,
+                          digit ? styles.digitBoxFilled : null,
+                          isCurrent ? styles.digitBoxActive : null,
+                        ]}
+                      >
+                        <Text style={styles.digitText}>{digit || ''}</Text>
+                        {!digit && isCurrent && <View style={styles.caretLine} />}
+                      </View>
+                    );
+                  })}
+                </View>
+
+                {/* Actual Hidden/Overlay TextInput capturing numbers */}
+                <TextInput
+                  ref={inputRef}
+                  style={styles.hiddenInput}
+                  value={otp}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/\D/g, '').slice(0, 6);
+                    setOtp(cleaned);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  textContentType="oneTimeCode"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  editable={!isVerifying}
+                  onFocus={() => setIsInputFocused(true)}
+                  onBlur={() => setIsInputFocused(false)}
+                  returnKeyType="done"
+                  onSubmitEditing={handleVerifyOtp}
+                />
+              </View>
             </View>
 
-            {/* Verify CTA */}
+            {/* Verify Email CTA */}
             <TouchableOpacity
-              style={[styles.primaryButton, otp.length !== 6 && styles.primaryButtonDisabled]}
+              style={[
+                styles.primaryButton,
+                (otp.length !== 6 || isVerifying) && styles.primaryButtonDisabled,
+              ]}
               onPress={handleVerifyOtp}
               disabled={isVerifying || otp.length !== 6}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Verify code and continue"
+              accessibilityLabel="Verify Email"
             >
               {isVerifying ? (
                 <ActivityIndicator color={colors.text.onBrand} />
               ) : (
                 <>
-                  <Text style={styles.primaryButtonText}>Verify & Continue</Text>
+                  <Text style={styles.primaryButtonText}>Verify Email</Text>
                   <ArrowRight size={18} color={colors.text.onBrand} />
                 </>
               )}
             </TouchableOpacity>
 
-            {/* Resend & Timer */}
+            {/* Resend Code & Cooldown Timer */}
             <View style={styles.resendContainer}>
               {countdown > 0 ? (
                 <Text style={styles.countdownText}>
@@ -222,6 +340,10 @@ export default function VerifyEmailScreen() {
                 </TouchableOpacity>
               )}
             </View>
+
+            <Text style={styles.emailHint}>
+              Didn't receive the code? Check your spam/promotions folder or click Resend Code.
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -251,6 +373,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     marginBottom: spacing.lg,
     alignSelf: 'flex-start',
+    paddingVertical: spacing.xs,
   },
   backText: {
     fontSize: typography.fontSize.xs,
@@ -280,23 +403,29 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xl,
     fontWeight: '800',
     color: colors.text.primary,
-    marginBottom: 4,
+    marginBottom: 6,
     textAlign: 'center',
   },
   cardSubtitle: {
     fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
     textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: spacing.sm,
   },
   emailPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     backgroundColor: colors.bg.tertiary,
     borderRadius: borderRadius.full,
     paddingHorizontal: spacing.md,
-    paddingVertical: 4,
-    marginTop: spacing.xs,
+    paddingVertical: 6,
+    marginTop: spacing.sm,
     marginBottom: spacing.xl,
     borderWidth: 1,
     borderColor: colors.border.subtle,
+    maxWidth: '90%',
   },
   emailText: {
     fontSize: typography.fontSize.xs,
@@ -322,30 +451,90 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '500',
   },
+  successBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    width: '100%',
+  },
+  successText: {
+    flex: 1,
+    color: colors.status.vacant,
+    fontSize: typography.fontSize.xs,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
   inputGroup: {
     width: '100%',
     marginBottom: spacing.xl,
+    alignItems: 'center',
   },
   inputLabel: {
     fontSize: typography.fontSize.xs,
     fontWeight: '600',
     color: colors.text.secondary,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
     textAlign: 'center',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  otpInput: {
+  otpWrapper: {
+    width: '100%',
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boxesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+    width: '100%',
+    maxWidth: 360,
+  },
+  digitBox: {
+    flex: 1,
     height: 56,
-    backgroundColor: colors.bg.tertiary,
     borderRadius: borderRadius.lg,
+    backgroundColor: colors.bg.tertiary,
     borderWidth: 1.5,
     borderColor: colors.border.default,
-    color: colors.text.primary,
-    fontSize: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  digitBoxFilled: {
+    borderColor: colors.border.roseStone,
+    backgroundColor: '#34303A',
+  },
+  digitBoxActive: {
+    borderColor: colors.brand.primary,
+    backgroundColor: '#382A2E',
+  },
+  digitText: {
+    fontSize: 24,
     fontWeight: '800',
+    color: colors.text.primary,
     textAlign: 'center',
-    letterSpacing: 8,
+  },
+  caretLine: {
+    width: 2,
+    height: 20,
+    backgroundColor: colors.brand.primary,
+    position: 'absolute',
+    borderRadius: 1,
+  },
+  hiddenInput: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    opacity: 0,
+    fontSize: 1,
   },
   primaryButton: {
     flexDirection: 'row',
@@ -369,6 +558,8 @@ const styles = StyleSheet.create({
   resendContainer: {
     marginTop: spacing.xl,
     alignItems: 'center',
+    minHeight: 32,
+    justifyContent: 'center',
   },
   countdownText: {
     fontSize: typography.fontSize.xs,
@@ -389,5 +580,13 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     color: colors.brand.primary,
     fontWeight: '700',
+  },
+  emailHint: {
+    marginTop: spacing.lg,
+    fontSize: typography.fontSize.xs - 1,
+    color: colors.text.tertiary,
+    textAlign: 'center',
+    lineHeight: 16,
+    paddingHorizontal: spacing.md,
   },
 });

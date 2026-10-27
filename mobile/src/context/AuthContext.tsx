@@ -16,7 +16,12 @@ interface AuthContextType {
   // Auth methods
   signInWithGoogle: () => Promise<{ error: Error | null; url?: string | null }>;
   sendEmailOtp: (email: string) => Promise<{ error: Error | null }>;
-  verifyEmailOtp: (email: string, token: string) => Promise<{ error: Error | null }>;
+  resendEmailOtp: (email: string, type?: 'signup' | 'email_change') => Promise<{ error: Error | null }>;
+  verifyEmailOtp: (
+    email: string,
+    token: string,
+    type?: 'signup' | 'email' | 'magiclink'
+  ) => Promise<{ error: Error | null; session?: Session | null }>;
   signUpWithPassword: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null; user?: User | null }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error: Error | null; session?: Session | null }>;
   resetPasswordForEmail: (email: string) => Promise<{ error: Error | null }>;
@@ -179,8 +184,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Verify Email OTP
-  const verifyEmailOtp = useCallback(async (email: string, token: string): Promise<{ error: Error | null }> => {
+  // Resend Email confirmation code / OTP
+  const resendEmailOtp = useCallback(async (
+    email: string,
+    type: 'signup' | 'email_change' = 'signup'
+  ): Promise<{ error: Error | null }> => {
+    try {
+      const trimmedEmail = email.trim().toLowerCase();
+      const { error } = await supabase.auth.resend({
+        type,
+        email: trimmedEmail,
+      });
+
+      if (error) return { error };
+
+      return { error: null };
+    } catch (err: any) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
+    }
+  }, []);
+
+  // Verify Email OTP (defaults to signup verification; also supports email/magiclink)
+  const verifyEmailOtp = useCallback(async (
+    email: string,
+    token: string,
+    type: 'signup' | 'email' | 'magiclink' = 'signup'
+  ): Promise<{ error: Error | null; session?: Session | null }> => {
     try {
       const trimmedEmail = email.trim().toLowerCase();
       const cleanedToken = token.trim();
@@ -188,21 +217,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.verifyOtp({
         email: trimmedEmail,
         token: cleanedToken,
-        type: 'email',
+        type: type as any,
       });
 
-      if (error) return { error };
+      if (error) return { error, session: null };
 
       if (data.session) {
         setSession(data.session);
         setUser(data.session.user);
-        await loadProfile(data.session.user.id);
+        if (data.session.user) {
+          await loadProfile(data.session.user.id);
+        }
       }
 
       setPendingEmail(null);
-      return { error: null };
+      return { error: null, session: data.session };
     } catch (err: any) {
-      return { error: err instanceof Error ? err : new Error(String(err)) };
+      return { error: err instanceof Error ? err : new Error(String(err)), session: null };
     }
   }, [loadProfile]);
 
@@ -491,6 +522,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setPendingEmail,
       signInWithGoogle,
       sendEmailOtp,
+      resendEmailOtp,
       verifyEmailOtp,
       signUpWithPassword,
       signInWithPassword,
@@ -512,6 +544,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       pendingEmail,
       signInWithGoogle,
       sendEmailOtp,
+      resendEmailOtp,
       verifyEmailOtp,
       signUpWithPassword,
       signInWithPassword,

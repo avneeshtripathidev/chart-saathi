@@ -115,6 +115,19 @@ export default function LoginScreen() {
       setIsSubmitting(true);
       const { error, session } = await signInWithPassword(email, password);
       if (error) {
+        const msg = (error.message || '').toLowerCase();
+        if (msg.includes('email not confirmed')) {
+          setPendingEmail(email.trim().toLowerCase());
+          router.push({
+            pathname: '/verify-email',
+            params: {
+              email: email.trim().toLowerCase(),
+              isSignup: 'true',
+              unconfirmed: 'true',
+            },
+          });
+          return;
+        }
         setErrorMessage(error.message || 'Invalid email or password.');
         return;
       }
@@ -151,13 +164,33 @@ export default function LoginScreen() {
       setIsSubmitting(true);
       const { error, user } = await signUpWithPassword(email, password, fullName);
       if (error) {
-        setErrorMessage(error.message || 'Registration failed. Please check details.');
+        const msg = (error.message || '').toLowerCase();
+        if (msg.includes('error sending confirmation email')) {
+          setErrorMessage(
+            'Supabase built-in email limit reached (max 3/hr). In your Supabase Dashboard (Authentication > Providers > Email), set up Custom SMTP (e.g. Gmail / Resend) or toggle "Confirm email" OFF for development.'
+          );
+        } else {
+          setErrorMessage(error.message || 'Registration failed. Please check details.');
+        }
+        return;
+      }
+
+      // Check if user already exists (identities array is empty in Supabase user enumeration prevention)
+      if (user && user.identities && user.identities.length === 0) {
+        setErrorMessage('An account with this email already exists. Please sign in instead.');
         return;
       }
 
       // Check if email confirmation is required
       if (user && !user.confirmed_at && !user.email_confirmed_at) {
-        setSuccessMessage('Account created! Please check your email to verify your address.');
+        setPendingEmail(email.trim().toLowerCase());
+        router.push({
+          pathname: '/verify-email',
+          params: {
+            email: email.trim().toLowerCase(),
+            isSignup: 'true',
+          },
+        });
       } else {
         router.replace('/complete-profile');
       }
@@ -184,7 +217,13 @@ export default function LoginScreen() {
         return;
       }
       setPendingEmail(email.trim().toLowerCase());
-      router.push('/verify-email');
+      router.push({
+        pathname: '/verify-email',
+        params: {
+          email: email.trim().toLowerCase(),
+          isSignup: 'false',
+        },
+      });
     } catch (err: any) {
       setErrorMessage(err?.message || 'Could not send verification code.');
     } finally {

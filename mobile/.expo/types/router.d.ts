@@ -6,61 +6,9 @@ export * from 'expo-router';
 declare module 'expo-router' {
   export namespace ExpoRouter {
     export interface __routes<T extends string | object = string> {
-      hrefInputParams:
-        | { pathname: Router.RelativePathString; params?: Router.UnknownInputParams }
-        | { pathname: Router.ExternalPathString; params?: Router.UnknownInputParams }
-        | { pathname: `/berth-detail`; params?: Router.UnknownInputParams }
-        | { pathname: `/berths`; params?: Router.UnknownInputParams }
-        | { pathname: `/coaches`; params?: Router.UnknownInputParams }
-        | { pathname: `/`; params?: Router.UnknownInputParams }
-        | { pathname: `/results`; params?: Router.UnknownInputParams }
-        | { pathname: `/settings`; params?: Router.UnknownInputParams }
-        | { pathname: `/login`; params?: Router.UnknownInputParams }
-        | { pathname: `/verify-email`; params?: Router.UnknownInputParams }
-        | { pathname: `/complete-profile`; params?: Router.UnknownInputParams }
-        | { pathname: `/auth/callback`; params?: Router.UnknownInputParams }
-        | { pathname: `/_sitemap`; params?: Router.UnknownInputParams };
-      hrefOutputParams:
-        | { pathname: Router.RelativePathString; params?: Router.UnknownOutputParams }
-        | { pathname: Router.ExternalPathString; params?: Router.UnknownOutputParams }
-        | { pathname: `/berth-detail`; params?: Router.UnknownOutputParams }
-        | { pathname: `/berths`; params?: Router.UnknownOutputParams }
-        | { pathname: `/coaches`; params?: Router.UnknownOutputParams }
-        | { pathname: `/`; params?: Router.UnknownOutputParams }
-        | { pathname: `/results`; params?: Router.UnknownOutputParams }
-        | { pathname: `/settings`; params?: Router.UnknownOutputParams }
-        | { pathname: `/login`; params?: Router.UnknownOutputParams }
-        | { pathname: `/verify-email`; params?: Router.UnknownOutputParams }
-        | { pathname: `/complete-profile`; params?: Router.UnknownOutputParams }
-        | { pathname: `/auth/callback`; params?: Router.UnknownOutputParams }
-        | { pathname: `/_sitemap`; params?: Router.UnknownOutputParams };
-      href:
-        | Router.RelativePathString
-        | Router.ExternalPathString
-        | `/berth-detail${`?${string}` | `#${string}` | ''}`
-        | `/berths${`?${string}` | `#${string}` | ''}`
-        | `/coaches${`?${string}` | `#${string}` | ''}`
-        | `/${`?${string}` | `#${string}` | ''}`
-        | `/results${`?${string}` | `#${string}` | ''}`
-        | `/settings${`?${string}` | `#${string}` | ''}`
-        | `/login${`?${string}` | `#${string}` | ''}`
-        | `/verify-email${`?${string}` | `#${string}` | ''}`
-        | `/complete-profile${`?${string}` | `#${string}` | ''}`
-        | `/auth/callback${`?${string}` | `#${string}` | ''}`
-        | `/_sitemap${`?${string}` | `#${string}` | ''}`
-        | { pathname: Router.RelativePathString; params?: Router.UnknownInputParams }
-        | { pathname: Router.ExternalPathString; params?: Router.UnknownInputParams }
-        | { pathname: `/berth-detail`; params?: Router.UnknownInputParams }
-        | { pathname: `/berths`; params?: Router.UnknownInputParams }
-        | { pathname: `/coaches`; params?: Router.UnknownInputParams }
-        | { pathname: `/`; params?: Router.UnknownInputParams }
-        | { pathname: `/results`; params?: Router.UnknownInputParams }
-        | { pathname: `/settings`; params?: Router.UnknownInputParams }
-        | { pathname: `/login`; params?: Router.UnknownInputParams }
-        | { pathname: `/verify-email`; params?: Router.UnknownInputParams }
-        | { pathname: `/complete-profile`; params?: Router.UnknownInputParams }
-        | { pathname: `/auth/callback`; params?: Router.UnknownInputParams }
-        | { pathname: `/_sitemap`; params?: Router.UnknownInputParams };
+      hrefInputParams: { pathname: Router.RelativePathString, params?: Router.UnknownInputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownInputParams } | { pathname: `/berth-detail`; params?: Router.UnknownInputParams; } | { pathname: `/berths`; params?: Router.UnknownInputParams; } | { pathname: `/coaches`; params?: Router.UnknownInputParams; } | { pathname: `/complete-profile`; params?: Router.UnknownInputParams; } | { pathname: `/`; params?: Router.UnknownInputParams; } | { pathname: `/login`; params?: Router.UnknownInputParams; } | { pathname: `/results`; params?: Router.UnknownInputParams; } | { pathname: `/settings`; params?: Router.UnknownInputParams; } | { pathname: `/verify-email`; params?: Router.UnknownInputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownInputParams; } | { pathname: `/auth/callback`; params?: Router.UnknownInputParams; };
+      hrefOutputParams: { pathname: Router.RelativePathString, params?: Router.UnknownOutputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownOutputParams } | { pathname: `/berth-detail`; params?: Router.UnknownOutputParams; } | { pathname: `/berths`; params?: Router.UnknownOutputParams; } | { pathname: `/coaches`; params?: Router.UnknownOutputParams; } | { pathname: `/complete-profile`; params?: Router.UnknownOutputParams; } | { pathname: `/`; params?: Router.UnknownOutputParams; } | { pathname: `/login`; params?: Router.UnknownOutputParams; } | { pathname: `/results`; params?: Router.UnknownOutputParams; } | { pathname: `/settings`; params?: Router.UnknownOutputParams; } | { pathname: `/verify-email`; params?: Router.UnknownOutputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownOutputParams; } | { pathname: `/auth/callback`; params?: Router.UnknownOutputParams; };
+      href: Router.RelativePathString | Router.ExternalPathString | `/berth-detail${`?${string}` | `#${string}` | ''}` | `/berths${`?${string}` | `#${string}` | ''}` | `/coaches${`?${string}` | `#${string}` | ''}` | `/complete-profile${`?${string}` | `#${string}` | ''}` | `/${`?${string}` | `#${string}` | ''}` | `/login${`?${string}` | `#${string}` | ''}` | `/results${`?${string}` | `#${string}` | ''}` | `/settings${`?${string}` | `#${string}` | ''}` | `/verify-email${`?${string}` | `#${string}` | ''}` | `/_sitemap${`?${string}` | `#${string}` | ''}` | `/auth/callback${`?${string}` | `#${string}` | ''}` | { pathname: Router.RelativePathString, params?: Router.UnknownInputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownInputParams } | { pathname: `/berth-detail`; params?: Router.UnknownInputParams; } | { pathname: `/berths`; params?: Router.UnknownInputParams; } | { pathname: `/coaches`; params?: Router.UnknownInputParams; } | { pathname: `/complete-profile`; params?: Router.UnknownInputParams; } | { pathname: `/`; params?: Router.UnknownInputParams; } | { pathname: `/login`; params?: Router.UnknownInputParams; } | { pathname: `/results`; params?: Router.UnknownInputParams; } | { pathname: `/settings`; params?: Router.UnknownInputParams; } | { pathname: `/verify-email`; params?: Router.UnknownInputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownInputParams; } | { pathname: `/auth/callback`; params?: Router.UnknownInputParams; };
     }
   }
 }

@@ -137,18 +137,27 @@ CREATE POLICY "profiles_service_role"
 ## 4. Configuring Authentication
 
 ### A. Email 6-Digit OTP Setup
-1. In the Supabase Dashboard, go to **Authentication** > **Providers** > **Email**.
-2. Set **Enable Email provider** to **ON**.
-3. Ensure **Confirm email** is enabled.
-4. Go to **Authentication** > **Email Templates** > **Magic Link / Confirmation**:
-   - In the Subject line: `Your ChartSaathi verification code is {{ .Token }}`
-   - In the Body: Ensure `{{ .Token }}` is clearly displayed so users receive the 6-digit number to input on the `/verify-email` screen:
+1. In the Supabase Dashboard, navigate to **Authentication** > **Providers** > **Email**.
+2. Ensure **Enable Email provider** is toggled to **ON**.
+3. Ensure **Confirm email** is toggled to **ON**.
+4. Set **OTP expiry limit** to `600` seconds (10 minutes) or your desired duration.
+5. In the left sidebar, navigate to **Authentication** > **Email Templates** > **Confirm signup**:
+   - **Subject**: `Your Email Verification Code`
+   - **Body (HTML)**: Replace the default confirmation link with `{{ .Token }}`:
      ```html
-     <h2>Your ChartSaathi Verification Code</h2>
-     <p>Enter the 6-digit code below to sign in:</p>
-     <h1 style="letter-spacing: 5px; color: #E45F60;">{{ .Token }}</h1>
-     <p>This code will expire in 10 minutes.</p>
+     <h2>Verify Your ChartSaathi Account</h2>
+     <p>Thank you for signing up with ChartSaathi! Please enter the 6-digit verification code below in the app to verify your email address:</p>
+     <div style="background-color: #242227; border: 1px solid #36333C; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+       <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #E45F60; font-family: 'Courier New', monospace;">{{ .Token }}</span>
+     </div>
+     <p style="color: #888888; font-size: 13px;">This verification code will expire in 10 minutes. Do not share this code with anyone.</p>
+     <p style="color: #888888; font-size: 13px;">If you did not initiate this signup, please disregard this email.</p>
      ```
+   - Click **Save**.
+
+6. *(Optional)* If using passwordless email sign-in, navigate to **Authentication** > **Email Templates** > **Magic Link**:
+   - **Subject**: `Your ChartSaathi Login Code`
+   - **Body (HTML)**: Ensure `{{ .Token }}` is displayed for the 6-digit code.
    - Click **Save**.
 
 ### B. Google OAuth 2.0 Setup
