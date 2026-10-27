@@ -8,7 +8,10 @@ import { pnrRoutes } from './routes/pnr.js';
 import { stationRoutes } from './routes/stations.js';
 import { authRoutes } from './routes/auth.js';
 
+console.log('🚀 [ChartSaathi] Serverless module loaded at', new Date().toISOString());
+
 async function buildApp() {
+  console.log('🔧 [ChartSaathi] Building Fastify app instance...');
   const app = Fastify({
     rewriteUrl(req) {
       const originalUrl = req.headers['x-forwarded-uri'] || req.headers['x-matched-path'];
@@ -145,6 +148,7 @@ async function buildApp() {
     });
   });
 
+  console.log('✅ [ChartSaathi] Fastify plugins and routes registered successfully');
   return app;
 }
 
@@ -152,8 +156,11 @@ let appPromise: ReturnType<typeof buildApp> | null = null;
 
 export async function getApp() {
   if (!appPromise) {
+    console.log('⏳ [ChartSaathi] Cold start: calling buildApp()...');
     appPromise = buildApp().then(async (app) => {
+      console.log('⏳ [ChartSaathi] Waiting for app.ready()...');
       await app.ready();
+      console.log('✅ [ChartSaathi] Fastify app is ready for incoming requests');
       return app;
     });
   }
@@ -161,16 +168,24 @@ export async function getApp() {
 }
 
 export default async function handler(req: any, res: any) {
+  const method = req?.method || 'GET';
+  const headers = req?.headers || {};
+  const originalUrl = headers['x-forwarded-uri'] || headers['x-matched-path'] || req?.url || '/';
+
+  console.log(`📥 [ChartSaathi] INCOMING: ${method} ${req?.url || '/'} -> Routing as: ${originalUrl}`);
+
   try {
-    const headers = req?.headers || {};
-    const originalUrl = headers['x-forwarded-uri'] || headers['x-matched-path'] || req?.url || '/';
     const app = await getApp();
+    console.log(`⚙️ [ChartSaathi] Injecting ${method} ${originalUrl} into Fastify...`);
+
     const response = await app.inject({
-      method: req?.method || 'GET',
+      method,
       url: originalUrl,
       headers: headers,
       payload: req?.body,
     });
+
+    console.log(`📤 [ChartSaathi] OUTGOING: ${response.statusCode} for ${method} ${originalUrl}`);
 
     res.statusCode = response.statusCode;
     for (const [key, value] of Object.entries(response.headers)) {
@@ -180,6 +195,7 @@ export default async function handler(req: any, res: any) {
     }
     return res.end(response.payload);
   } catch (err: any) {
+    console.error('❌ [ChartSaathi] CRITICAL: Exception inside handler:', err);
     if (res && !res.headersSent) {
       res.statusCode = 500;
       if (typeof res.setHeader === 'function') {

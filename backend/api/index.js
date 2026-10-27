@@ -28545,7 +28545,9 @@ async function authRoutes(app) {
 }
 
 // src/index.ts
+console.log("\u{1F680} [ChartSaathi] Serverless module loaded at", (/* @__PURE__ */ new Date()).toISOString());
 async function buildApp() {
+  console.log("\u{1F527} [ChartSaathi] Building Fastify app instance...");
   const app = (0, import_fastify.default)({
     rewriteUrl(req) {
       const originalUrl = req.headers["x-forwarded-uri"] || req.headers["x-matched-path"];
@@ -28655,29 +28657,37 @@ async function buildApp() {
       error: { code: "NOT_FOUND", message: "Route not found" }
     });
   });
+  console.log("\u2705 [ChartSaathi] Fastify plugins and routes registered successfully");
   return app;
 }
 var appPromise = null;
 async function getApp() {
   if (!appPromise) {
+    console.log("\u23F3 [ChartSaathi] Cold start: calling buildApp()...");
     appPromise = buildApp().then(async (app) => {
+      console.log("\u23F3 [ChartSaathi] Waiting for app.ready()...");
       await app.ready();
+      console.log("\u2705 [ChartSaathi] Fastify app is ready for incoming requests");
       return app;
     });
   }
   return appPromise;
 }
 async function handler(req, res) {
+  const method = req?.method || "GET";
+  const headers = req?.headers || {};
+  const originalUrl = headers["x-forwarded-uri"] || headers["x-matched-path"] || req?.url || "/";
+  console.log(`\u{1F4E5} [ChartSaathi] INCOMING: ${method} ${req?.url || "/"} -> Routing as: ${originalUrl}`);
   try {
-    const headers = req?.headers || {};
-    const originalUrl = headers["x-forwarded-uri"] || headers["x-matched-path"] || req?.url || "/";
     const app = await getApp();
+    console.log(`\u2699\uFE0F [ChartSaathi] Injecting ${method} ${originalUrl} into Fastify...`);
     const response = await app.inject({
-      method: req?.method || "GET",
+      method,
       url: originalUrl,
       headers,
       payload: req?.body
     });
+    console.log(`\u{1F4E4} [ChartSaathi] OUTGOING: ${response.statusCode} for ${method} ${originalUrl}`);
     res.statusCode = response.statusCode;
     for (const [key, value] of Object.entries(response.headers)) {
       if (value !== void 0) {
@@ -28686,6 +28696,7 @@ async function handler(req, res) {
     }
     return res.end(response.payload);
   } catch (err) {
+    console.error("\u274C [ChartSaathi] CRITICAL: Exception inside handler:", err);
     if (res && !res.headersSent) {
       res.statusCode = 500;
       if (typeof res.setHeader === "function") {
