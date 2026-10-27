@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "jsx": "react-native",
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "typeRoots": [
+      "./backend/node_modules/@types",
+      "./mobile/node_modules/@types"
+    ],
+    "types": [
+      "jest",
+      "node"
+    ]
+  },
+  "exclude": [
+    "**/node_modules",
+    "**/dist"
+  ]
+}
