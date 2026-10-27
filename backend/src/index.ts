@@ -89,6 +89,27 @@ async function buildApp() {
     });
   });
 
+  // Direct Vercel function path fallbacks
+  app.get('/api/index', async (_request, reply) => {
+    return reply.send({
+      name: 'ChartSaathi API',
+      status: 'ok',
+      version: '1.0.0',
+      health: '/health',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.get('/api', async (_request, reply) => {
+    return reply.send({
+      name: 'ChartSaathi API',
+      status: 'ok',
+      version: '1.0.0',
+      health: '/health',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   // Health check
   app.get('/health', async (_request, reply) => {
     return reply.send({
