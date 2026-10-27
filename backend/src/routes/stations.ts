@@ -1,8 +1,22 @@
 import type { FastifyInstance } from 'fastify';
-import { stationsByName, stationByCode, configure } from 'railkit';
 import { cacheGet, cacheSet, cacheKey } from '../db/cache.js';
 import { successResponse, errorResponse } from '../types/index.js';
 import { config } from '../config/env.js';
+
+let rkModule: any = null;
+async function getRailKit(): Promise<any> {
+  if (!rkModule) {
+    try {
+      rkModule = await import('railkit');
+      if (config.RAILKIT_API_KEY && typeof rkModule.configure === 'function') {
+        rkModule.configure(config.RAILKIT_API_KEY);
+      }
+    } catch {
+      rkModule = null;
+    }
+  }
+  return rkModule;
+}
 
 interface StationSuggestion {
   code: string;
@@ -10,9 +24,8 @@ interface StationSuggestion {
 }
 
 export async function stationRoutes(app: FastifyInstance): Promise<void> {
-  if (config.RAILKIT_API_KEY) {
-    configure(config.RAILKIT_API_KEY);
-  }
+  // Configured lazily on first call
+
 
   /**
    * GET /api/v1/stations/search
@@ -26,8 +39,9 @@ export async function stationRoutes(app: FastifyInstance): Promise<void> {
       return reply.send(successResponse([]));
     }
 
-    if (config.RAILKIT_API_KEY) {
-      configure(config.RAILKIT_API_KEY);
+    const rk = await getRailKit();
+    if (!rk) {
+      return reply.send(successResponse([]));
     }
 
     const ck = cacheKey('stations:search', q);
@@ -41,9 +55,9 @@ export async function stationRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       // 1. Try station by code (if 2-5 chars)
-      if (q.length >= 2 && q.length <= 5) {
+      if (q.length >= 2 && q.length <= 5 && typeof rk.stationByCode === 'function') {
         try {
-          const codeRes = await stationByCode(q.toUpperCase());
+          const codeRes = await rk.stationByCode(q.toUpperCase());
           if (codeRes?.success && codeRes.data?.code) {
             seenCodes.add(codeRes.data.code);
             results.push({
@@ -57,28 +71,30 @@ export async function stationRoutes(app: FastifyInstance): Promise<void> {
       }
 
       // 2. Try stations by name
-      let nameRes = await stationsByName(q);
-      if (nameRes?.success && Array.isArray(nameRes.data?.stations) && nameRes.data.stations.length > 0) {
-        for (const stn of nameRes.data.stations) {
-          if (!seenCodes.has(stn.code)) {
-            seenCodes.add(stn.code);
-            results.push({ code: stn.code, name: stn.name });
-          }
-        }
-      } else if (q.length >= 4) {
-        // Fallback for typos or trailing extra characters (e.g., 'Govinde' -> 'Govind')
-        try {
-          const fallbackRes = await stationsByName(q.slice(0, -1));
-          if (fallbackRes?.success && Array.isArray(fallbackRes.data?.stations)) {
-            for (const stn of fallbackRes.data.stations) {
-              if (!seenCodes.has(stn.code)) {
-                seenCodes.add(stn.code);
-                results.push({ code: stn.code, name: stn.name });
-              }
+      if (typeof rk.stationsByName === 'function') {
+        let nameRes = await rk.stationsByName(q);
+        if (nameRes?.success && Array.isArray(nameRes.data?.stations) && nameRes.data.stations.length > 0) {
+          for (const stn of nameRes.data.stations) {
+            if (!seenCodes.has(stn.code)) {
+              seenCodes.add(stn.code);
+              results.push({ code: stn.code, name: stn.name });
             }
           }
-        } catch {
-          // ignore fallback error
+        } else if (q.length >= 4) {
+          // Fallback for typos or trailing extra characters (e.g., 'Govinde' -> 'Govind')
+          try {
+            const fallbackRes = await rk.stationsByName(q.slice(0, -1));
+            if (fallbackRes?.success && Array.isArray(fallbackRes.data?.stations)) {
+              for (const stn of fallbackRes.data.stations) {
+                if (!seenCodes.has(stn.code)) {
+                  seenCodes.add(stn.code);
+                  results.push({ code: stn.code, name: stn.name });
+                }
+              }
+            }
+          } catch {
+            // ignore fallback error
+          }
         }
       }
 

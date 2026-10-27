@@ -20153,7 +20153,17 @@ async function chartRoutes(app) {
 }
 
 // src/routes/pnr.ts
-var import_railkit = require("railkit");
+var rkModule2 = null;
+async function getRailKit2() {
+  if (!rkModule2) {
+    try {
+      rkModule2 = await import("railkit");
+    } catch {
+      rkModule2 = null;
+    }
+  }
+  return rkModule2;
+}
 async function pnrRoutes(app) {
   app.get("/:pnrNumber", async (request, reply) => {
     const { pnrNumber } = request.params;
@@ -20171,7 +20181,13 @@ async function pnrRoutes(app) {
       );
     }
     try {
-      const res = await (0, import_railkit.checkPNRStatus)(cleanPNR);
+      const rk = await getRailKit2();
+      if (!rk || typeof rk.checkPNRStatus !== "function") {
+        return reply.status(503).send(
+          errorResponse("SERVICE_UNAVAILABLE", "RailKit service is not available")
+        );
+      }
+      const res = await rk.checkPNRStatus(cleanPNR);
       if (res?.success && res.data) {
         cacheSet(ck, res.data, 120);
         return reply.send(
@@ -20190,19 +20206,30 @@ async function pnrRoutes(app) {
 }
 
 // src/routes/stations.ts
-var import_railkit2 = require("railkit");
-async function stationRoutes(app) {
-  if (config.RAILKIT_API_KEY) {
-    (0, import_railkit2.configure)(config.RAILKIT_API_KEY);
+var rkModule3 = null;
+async function getRailKit3() {
+  if (!rkModule3) {
+    try {
+      rkModule3 = await import("railkit");
+      if (config.RAILKIT_API_KEY && typeof rkModule3.configure === "function") {
+        rkModule3.configure(config.RAILKIT_API_KEY);
+      }
+    } catch {
+      rkModule3 = null;
+    }
   }
+  return rkModule3;
+}
+async function stationRoutes(app) {
   app.get("/search", async (request, reply) => {
     const { query } = request.query;
     const q = (query ?? "").trim();
     if (q.length < 2) {
       return reply.send(successResponse([]));
     }
-    if (config.RAILKIT_API_KEY) {
-      (0, import_railkit2.configure)(config.RAILKIT_API_KEY);
+    const rk = await getRailKit3();
+    if (!rk) {
+      return reply.send(successResponse([]));
     }
     const ck = cacheKey("stations:search", q);
     const cached = cacheGet(ck);
@@ -20212,9 +20239,9 @@ async function stationRoutes(app) {
     const results = [];
     const seenCodes = /* @__PURE__ */ new Set();
     try {
-      if (q.length >= 2 && q.length <= 5) {
+      if (q.length >= 2 && q.length <= 5 && typeof rk.stationByCode === "function") {
         try {
-          const codeRes = await (0, import_railkit2.stationByCode)(q.toUpperCase());
+          const codeRes = await rk.stationByCode(q.toUpperCase());
           if (codeRes?.success && codeRes.data?.code) {
             seenCodes.add(codeRes.data.code);
             results.push({
@@ -20225,26 +20252,28 @@ async function stationRoutes(app) {
         } catch {
         }
       }
-      let nameRes = await (0, import_railkit2.stationsByName)(q);
-      if (nameRes?.success && Array.isArray(nameRes.data?.stations) && nameRes.data.stations.length > 0) {
-        for (const stn of nameRes.data.stations) {
-          if (!seenCodes.has(stn.code)) {
-            seenCodes.add(stn.code);
-            results.push({ code: stn.code, name: stn.name });
-          }
-        }
-      } else if (q.length >= 4) {
-        try {
-          const fallbackRes = await (0, import_railkit2.stationsByName)(q.slice(0, -1));
-          if (fallbackRes?.success && Array.isArray(fallbackRes.data?.stations)) {
-            for (const stn of fallbackRes.data.stations) {
-              if (!seenCodes.has(stn.code)) {
-                seenCodes.add(stn.code);
-                results.push({ code: stn.code, name: stn.name });
-              }
+      if (typeof rk.stationsByName === "function") {
+        let nameRes = await rk.stationsByName(q);
+        if (nameRes?.success && Array.isArray(nameRes.data?.stations) && nameRes.data.stations.length > 0) {
+          for (const stn of nameRes.data.stations) {
+            if (!seenCodes.has(stn.code)) {
+              seenCodes.add(stn.code);
+              results.push({ code: stn.code, name: stn.name });
             }
           }
-        } catch {
+        } else if (q.length >= 4) {
+          try {
+            const fallbackRes = await rk.stationsByName(q.slice(0, -1));
+            if (fallbackRes?.success && Array.isArray(fallbackRes.data?.stations)) {
+              for (const stn of fallbackRes.data.stations) {
+                if (!seenCodes.has(stn.code)) {
+                  seenCodes.add(stn.code);
+                  results.push({ code: stn.code, name: stn.name });
+                }
+              }
+            }
+          } catch {
+          }
         }
       }
       cacheSet(ck, results, 86400);

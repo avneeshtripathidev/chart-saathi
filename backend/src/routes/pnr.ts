@@ -1,7 +1,18 @@
 import type { FastifyInstance } from 'fastify';
-import { checkPNRStatus } from 'railkit';
 import { cacheGet, cacheSet, cacheKey } from '../db/cache.js';
 import { successResponse, errorResponse } from '../types/index.js';
+
+let rkModule: any = null;
+async function getRailKit(): Promise<any> {
+  if (!rkModule) {
+    try {
+      rkModule = await import('railkit');
+    } catch {
+      rkModule = null;
+    }
+  }
+  return rkModule;
+}
 
 export async function pnrRoutes(app: FastifyInstance): Promise<void> {
   /**
@@ -27,7 +38,13 @@ export async function pnrRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      const res = await checkPNRStatus(cleanPNR);
+      const rk = await getRailKit();
+      if (!rk || typeof rk.checkPNRStatus !== 'function') {
+        return reply.status(503).send(
+          errorResponse('SERVICE_UNAVAILABLE', 'RailKit service is not available'),
+        );
+      }
+      const res = await rk.checkPNRStatus(cleanPNR);
       if (res?.success && res.data) {
         // Cache PNR status for 2 minutes
         cacheSet(ck, res.data, 120);
