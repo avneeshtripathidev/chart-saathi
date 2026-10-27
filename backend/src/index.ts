@@ -187,7 +187,7 @@ async function start() {
 
 export { buildApp };
 
-// Only listen on port when running standalone (not in Vercel serverless)
-if (!process.env.VERCEL) {
+// Only listen on port when running standalone locally in development
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
   start();
 }
