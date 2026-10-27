@@ -138,13 +138,13 @@ const styles = StyleSheet.create({
   },
   webOuter: {
     flex: 1,
-    minHeight: '100vh' as any,
     backgroundColor: '#181619',
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingVertical: 18,
-    overflowY: 'auto' as any,
-  },
+    overflow: 'scroll',
+    ...(Platform.OS === 'web' ? ({ minHeight: '100vh', overflowY: 'auto' } as any) : {}),
+  } as any,
   deviceFrame: {
     width: 390,
     height: 844,
