@@ -1,0 +1,75 @@
+name: ChartSaathi CI Verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  backend-verification:
+    name: Backend (Typecheck, Build & Tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: 'backend/package.json'
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install
+
+      - name: Run TypeScript typecheck
+        working-directory: backend
+        run: npm run typecheck
+
+      - name: Build Fastify backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Run Backend Jest Tests
+        working-directory: backend
+        env:
+          PORT: 3001
+          NODE_ENV: test
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_ANON_KEY: test-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: test-service-key
+          CHART_PROVIDER: mock
+          CORS_ORIGINS: http://localhost:8081
+        run: npm test
+
+  mobile-verification:
+    name: Mobile / Web (Typecheck & Tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: 'mobile/package.json'
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm install --legacy-peer-deps
+
+      - name: Run TypeScript typecheck
+        working-directory: mobile
+        run: npm run typecheck
+
+      - name: Run Mobile Jest Tests
+        working-directory: mobile
+        run: npm test
