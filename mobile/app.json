@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "ChartSaathi",
-    "slug": "chartsaathi",
+    "slug": "avneesh",
+    "owner": "avneesh72s-team",
     "version": "1.0.0",
     "scheme": "chartsaathi",
     "orientation": "portrait",
@@ -44,6 +45,11 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "1b123d5d-07f7-4c49-9478-6fb62f989b4e"
+      }
     }
   }
 }
