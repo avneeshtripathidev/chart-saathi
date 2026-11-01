@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 jobs:
@@ -205,12 +205,25 @@ jobs:
           ls -la
 
       - name: Upload Android APK Artifacts
+        id: upload-artifact
         uses: actions/upload-artifact@v4
         with:
           name: ChartSaathi-Android-APK
           path: artifacts/ChartSaathi-Android/
           retention-days: 30
           if-no-files-found: error
+
+      - name: Publish Direct APK Download to GitHub Releases
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Publishing direct .apk download to GitHub Releases..."
+          gh release delete latest-apk --yes --cleanup-tag || true
+          gh release create latest-apk artifacts/ChartSaathi-Android/* \
+            --title "ChartSaathi Android APK (Latest)" \
+            --notes "Automated build from commit ${{ github.sha }} on ${{ github.ref_name }}. Download the .apk file directly below to install on your Android device." \
+            --latest || true
 
   pipeline-summary:
     name: 6. CI/CD Pipeline Summary & Matrix Report
@@ -233,6 +246,14 @@ jobs:
           | **APK Verification & SHA-256** | ✅ PASS | Non-zero package verification & SHA-256 hash |
           | **Artifact Upload** | ✅ PASS | `ChartSaathi-Android-APK` uploaded (30-day retention) |
 
-          ### 📦 Download Android APK
-          The signed Android APK with its `checksums.txt` and `build-info.txt` is available under the **Artifacts** section of this GitHub Actions run.
+          ---
+
+          ## 📥 Direct Options to Download Android APK
+
+          | Download Option | Method | Direct Link |
+          |---|---|---|
+          | **Option 1 (Recommended)** | **Direct `.apk` Download**<br>(No unzipping needed, tap and install directly on Android phone) | 📲 **[Download Latest APK from Releases](https://github.com/${{ github.repository }}/releases/tag/latest-apk)** |
+          | **Option 2** | **GitHub Actions Artifact ZIP**<br>(Contains APK + SHA-256 checksums + build-info) | 📦 **[Download Artifact from Actions](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)** |
+
+          > 💡 **Tip for Android Users:** For instant installation without needing a ZIP extraction app on your phone, click **Option 1**, download `app-release.apk` (or `app-debug.apk`), and tap **Install**.
           EOF
