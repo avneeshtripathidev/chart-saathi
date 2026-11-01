@@ -19915,7 +19915,10 @@ var ChartVacancyParamsSchema = external_exports.object({
   date: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   boardingStation: external_exports.string().min(2).max(7).toUpperCase(),
   destinationStation: external_exports.string().min(2).max(7).toUpperCase().default("ALL"),
-  trainClass: TrainClassSchema.optional()
+  trainClass: external_exports.preprocess((val) => {
+    if (!val || val === "undefined" || val === "null" || val === "ALL" || val === "all" || val === "") return void 0;
+    return val;
+  }, TrainClassSchema.optional())
 });
 function successResponse(data, meta) {
   return {

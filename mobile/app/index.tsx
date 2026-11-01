@@ -87,14 +87,44 @@ const LIVE_POPULAR_INQUIRIES: RecentInquiryItem[] = [
 function normalizeDate(d: string): string {
   const trimmed = d.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
-  const parsed = new Date(trimmed);
-  if (!isNaN(parsed.getTime())) {
-    const y = parsed.getFullYear();
-    const m = String(parsed.getMonth() + 1).padStart(2, '0');
-    const day = String(parsed.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+
+  // DD-MM-YYYY or DD/MM/YYYY
+  const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
   }
-  return trimmed;
+
+  // DD MMM YYYY (e.g. 01 Nov 2026 or 1 Nov 2026)
+  const months: Record<string, string> = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+  };
+  const mmmMatch = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/);
+  if (mmmMatch) {
+    const day = mmmMatch[1].padStart(2, '0');
+    const monKey = mmmMatch[2].substring(0, 3).toLowerCase();
+    const month = months[monKey];
+    const year = mmmMatch[3];
+    if (month) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  try {
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const day = String(parsed.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+  } catch {}
+
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 export default function HomeScreen() {
@@ -218,16 +248,18 @@ export default function HomeScreen() {
       }
     }
 
-    const params = {
+    const params: Record<string, string> = {
       trainNumber: trainNum,
       trainName: trainNm,
       date: normDate,
       boardingStation: boardingCode,
       destinationStation: destCode,
-      trainClass,
       routeType,
       viaStation: routeType === 'INDIRECT' ? viaStation.trim().toUpperCase() : '',
     };
+    if (trainClass) {
+      params.trainClass = trainClass;
+    }
 
     const newRecent: RecentSearch = {
       id: Date.now().toString(),
@@ -237,7 +269,7 @@ export default function HomeScreen() {
       date: params.date,
       boardingStation: params.boardingStation,
       destinationStation: params.destinationStation,
-      trainClass: params.trainClass,
+      trainClass: trainClass,
     };
     const updated = [newRecent, ...recentSearches.filter((r) => r.trainNumber !== params.trainNumber)].slice(0, MAX_RECENT_SEARCHES);
     setRecentSearches(updated);

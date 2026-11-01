@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { router } from 'expo-router';
+import * as Linking from 'expo-linking';
+import queryString from 'query-string';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Train } from 'lucide-react-native';
 import { colors, spacing, borderRadius, typography } from '../../src/utils/theme';
@@ -15,6 +17,39 @@ export default function AuthCallbackScreen() {
 
     async function handleAuthCallback() {
       try {
+        // On mobile native, extract session tokens or auth code from deep link URL
+        if (Platform.OS !== 'web') {
+          const initialUrl = await Linking.getInitialURL();
+          if (initialUrl) {
+            let access_token: string | null = null;
+            let refresh_token: string | null = null;
+            let code: string | null = null;
+
+            const hashIdx = initialUrl.indexOf('#');
+            if (hashIdx !== -1) {
+              const hash = initialUrl.substring(hashIdx + 1);
+              const parsed = queryString.parse(hash);
+              access_token = (parsed.access_token as string) || null;
+              refresh_token = (parsed.refresh_token as string) || null;
+            }
+
+            const queryIdx = initialUrl.indexOf('?');
+            if (queryIdx !== -1) {
+              const query = initialUrl.substring(queryIdx + 1);
+              const parsed = queryString.parse(query);
+              if (!access_token && parsed.access_token) access_token = parsed.access_token as string;
+              if (!refresh_token && parsed.refresh_token) refresh_token = parsed.refresh_token as string;
+              if (parsed.code) code = parsed.code as string;
+            }
+
+            if (access_token && refresh_token) {
+              await supabase.auth.setSession({ access_token, refresh_token });
+            } else if (code) {
+              await supabase.auth.exchangeCodeForSession(code);
+            }
+          }
+        }
+
         // Allow Supabase client to parse URL hash/query in web or deep link
         const { data: { session }, error } = await supabase.auth.getSession();
 

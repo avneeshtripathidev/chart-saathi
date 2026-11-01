@@ -44,7 +44,7 @@ export interface BerthInfo {
 
 export interface CoachInfo {
   coachId: string;
-  coachClass: TrainClass;
+  coachClass: TrainClass | string;
   totalBerths?: number | null;
   vacantCount?: number | null;
   occupiedCount?: number | null;

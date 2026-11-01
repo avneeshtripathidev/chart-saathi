@@ -105,7 +105,10 @@ export const ChartVacancyParamsSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   boardingStation: z.string().min(2).max(7).toUpperCase(),
   destinationStation: z.string().min(2).max(7).toUpperCase().default('ALL'),
-  trainClass: TrainClassSchema.optional(),
+  trainClass: z.preprocess((val) => {
+    if (!val || val === 'undefined' || val === 'null' || val === 'ALL' || val === 'all' || val === '') return undefined;
+    return val;
+  }, TrainClassSchema.optional()),
 });
 export type ChartVacancyParams = z.infer<typeof ChartVacancyParamsSchema>;
 

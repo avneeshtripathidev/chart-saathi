@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, type UserProfile, type NotificationPreferences, type PrivacySettings } from '../lib/supabase';
 import { API_BASE_URL } from '../utils/config';
@@ -11,6 +12,8 @@ interface AuthContextType {
   profile: UserProfile | null;
   isLoading: boolean;
   isProfileComplete: boolean;
+  isGuest: boolean;
+  continueAsGuest: () => Promise<void>;
   pendingEmail: string | null;
   setPendingEmail: (email: string | null) => void;
   // Auth methods
@@ -51,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isGuest, setIsGuest] = useState<boolean>(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
 
   // Check if profile is complete (onboarding_completed flag or name + mobile)
@@ -90,6 +94,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function initializeAuth() {
       try {
+        const savedGuest = await AsyncStorage.getItem('chartsaathi_is_guest');
+        if (savedGuest === 'true' && isMounted) {
+          setIsGuest(true);
+        }
+
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         if (error) {
           console.warn('Error getting session:', error.message);
@@ -99,6 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(initialSession);
           setUser(initialSession?.user ?? null);
           if (initialSession?.user) {
+            setIsGuest(false);
             await loadProfile(initialSession.user.id);
           }
         }
@@ -154,8 +164,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) return { error };
 
-      if (Platform.OS === 'web' && data?.url && typeof window !== 'undefined') {
-        window.location.href = data.url;
+      if (data?.url) {
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          window.location.href = data.url;
+        } else {
+          await Linking.openURL(data.url);
+        }
       }
 
       return { error: null, url: data?.url };
@@ -468,11 +482,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, profile]);
 
+  // Continue as guest without mandatory sign-in
+  const continueAsGuest = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem('chartsaathi_is_guest', 'true');
+    } catch {}
+    setIsGuest(true);
+  }, []);
+
   // Sign out
   const signOut = useCallback(async () => {
     try {
       await supabase.auth.signOut();
     } finally {
+      try {
+        await AsyncStorage.removeItem('chartsaathi_is_guest');
+      } catch {}
+      setIsGuest(false);
       setSession(null);
       setUser(null);
       setProfile(null);
@@ -518,6 +544,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       isLoading,
       isProfileComplete,
+      isGuest,
+      continueAsGuest,
       pendingEmail,
       setPendingEmail,
       signInWithGoogle,
@@ -541,6 +569,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       isLoading,
       isProfileComplete,
+      isGuest,
+      continueAsGuest,
       pendingEmail,
       signInWithGoogle,
       sendEmailOtp,

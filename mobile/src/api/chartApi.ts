@@ -8,10 +8,21 @@ import type {
   TrainClass,
 } from '../types';
 
-async function apiFetch<T>(path: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
-  const url = new URL(`${API_BASE_URL}${path}`);
+const VALID_TRAIN_CLASSES = new Set(['1A', '2A', '3A', 'SL', 'CC', '2S', 'FC', 'EC']);
+
+function isRealClass(cls?: string): cls is TrainClass {
+  return Boolean(cls && VALID_TRAIN_CLASSES.has(cls));
+}
+
+async function apiFetch<T>(path: string, params?: Record<string, string | undefined>): Promise<ApiResponse<T>> {
+  const baseUrl = API_BASE_URL.replace(/\/+$/, '');
+  const url = new URL(`${baseUrl}${path}`);
   if (params) {
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== 'undefined' && v !== null && v !== 'null' && v !== '') {
+        url.searchParams.set(k, v);
+      }
+    });
   }
 
   try {
@@ -62,48 +73,60 @@ export interface ChartParams {
   date: string;
   boardingStation: string;
   destinationStation: string;
-  trainClass?: TrainClass;
+  trainClass?: TrainClass | string;
 }
 
 export async function getChartStatus(params: ChartParams): Promise<ApiResponse<{ chartStatus: string }>> {
-  return apiFetch('/api/v1/charts/status', {
+  const query: Record<string, string> = {
     trainNumber: params.trainNumber,
     date: params.date,
     boardingStation: params.boardingStation,
     destinationStation: params.destinationStation,
-    ...(params.trainClass ? { trainClass: params.trainClass } : {}),
-  });
+  };
+  if (isRealClass(params.trainClass)) {
+    query.trainClass = params.trainClass;
+  }
+  return apiFetch('/api/v1/charts/status', query);
 }
 
 export async function getChartVacancy(params: ChartParams): Promise<ApiResponse<ChartVacancy>> {
-  return apiFetch<ChartVacancy>('/api/v1/charts/vacancy', {
+  const query: Record<string, string> = {
     trainNumber: params.trainNumber,
     date: params.date,
     boardingStation: params.boardingStation,
     destinationStation: params.destinationStation,
-    ...(params.trainClass ? { trainClass: params.trainClass } : {}),
-  });
+  };
+  if (isRealClass(params.trainClass)) {
+    query.trainClass = params.trainClass;
+  }
+  return apiFetch<ChartVacancy>('/api/v1/charts/vacancy', query);
 }
 
 export async function getCoaches(params: ChartParams): Promise<ApiResponse<CoachInfo[]>> {
-  return apiFetch<CoachInfo[]>('/api/v1/charts/coaches', {
+  const query: Record<string, string> = {
     trainNumber: params.trainNumber,
     date: params.date,
     boardingStation: params.boardingStation,
     destinationStation: params.destinationStation,
-    ...(params.trainClass ? { trainClass: params.trainClass } : {}),
-  });
+  };
+  if (isRealClass(params.trainClass)) {
+    query.trainClass = params.trainClass;
+  }
+  return apiFetch<CoachInfo[]>('/api/v1/charts/coaches', query);
 }
 
 export async function getBerths(
   params: ChartParams & { coachId: string },
 ): Promise<ApiResponse<BerthInfo[]>> {
-  return apiFetch<BerthInfo[]>('/api/v1/charts/berths', {
+  const query: Record<string, string> = {
     trainNumber: params.trainNumber,
     date: params.date,
     boardingStation: params.boardingStation,
     destinationStation: params.destinationStation,
     coachId: params.coachId,
-    ...(params.trainClass ? { trainClass: params.trainClass } : {}),
-  });
+  };
+  if (isRealClass(params.trainClass)) {
+    query.trainClass = params.trainClass;
+  }
+  return apiFetch<BerthInfo[]>('/api/v1/charts/berths', query);
 }

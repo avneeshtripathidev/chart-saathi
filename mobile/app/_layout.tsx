@@ -17,12 +17,17 @@ const queryClient = new QueryClient({
   },
 });
 
-function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { session, isLoading, isProfileComplete } = useAuth();
+function NavigationContainer({ children }: { children: React.ReactNode }) {
+  const { session, isGuest, isLoading, isProfileComplete } = useAuth();
   const segments = useSegments();
+  const [isReady, setIsReady] = React.useState(false);
 
   useEffect(() => {
-    if (isLoading) return;
+    setIsReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isReady || isLoading) return;
 
     const route = segments.join('/');
     const isAuthRoute =
@@ -31,30 +36,31 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       route === 'auth/callback';
     const isProfileRoute = route === 'complete-profile';
 
-    if (!session) {
+    if (!session && !isGuest) {
       if (!isAuthRoute) {
         router.replace('/login');
       }
-    } else if (!isProfileComplete) {
+    } else if (session && !isProfileComplete && !isGuest) {
       if (!isProfileRoute && route !== 'auth/callback') {
         router.replace('/complete-profile');
       }
-    } else {
+    } else if (session && isProfileComplete) {
       if (isAuthRoute || isProfileRoute) {
         router.replace('/');
       }
     }
-  }, [session, isLoading, isProfileComplete, segments]);
+  }, [session, isGuest, isLoading, isProfileComplete, segments, isReady]);
 
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.brand.primary} />
-      </View>
-    );
-  }
-
-  return <>{children}</>;
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+      {children}
+      {isLoading && (
+        <View style={[StyleSheet.absoluteFill, styles.loadingOverlay]}>
+          <ActivityIndicator size="large" color={colors.brand.primary} />
+        </View>
+      )}
+    </View>
+  );
 }
 
 export default function RootLayout() {
@@ -62,41 +68,43 @@ export default function RootLayout() {
   const isLargeWeb = Platform.OS === 'web' && width > 480;
 
   const stackContent = (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.bg.primary },
-        headerTintColor: colors.text.primary,
-        headerTitleStyle: { fontWeight: '700', fontSize: 17 },
-        contentStyle: { backgroundColor: colors.bg.primary },
-        headerShadowVisible: false,
-      }}
-    >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="verify-email" options={{ headerShown: false }} />
-      <Stack.Screen name="complete-profile" options={{ headerShown: false }} />
-      <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="results"
-        options={{ title: 'Chart Vacancy', headerBackTitle: 'Home' }}
-      />
-      <Stack.Screen
-        name="coaches"
-        options={{ title: 'Coach Explorer', headerBackTitle: 'Results' }}
-      />
-      <Stack.Screen
-        name="berths"
-        options={{ title: 'Berth Layout', headerBackTitle: 'Coaches' }}
-      />
-      <Stack.Screen
-        name="berth-detail"
-        options={{ title: 'Berth Details', presentation: 'modal', headerBackTitle: 'Back' }}
-      />
-      <Stack.Screen
-        name="settings"
-        options={{ title: 'Settings & Info', headerBackTitle: 'Back' }}
-      />
-    </Stack>
+    <NavigationContainer>
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.bg.primary },
+          headerTintColor: colors.text.primary,
+          headerTitleStyle: { fontWeight: '700', fontSize: 17 },
+          contentStyle: { backgroundColor: colors.bg.primary },
+          headerShadowVisible: false,
+        }}
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="verify-email" options={{ headerShown: false }} />
+        <Stack.Screen name="complete-profile" options={{ headerShown: false }} />
+        <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="results"
+          options={{ title: 'Chart Vacancy', headerBackTitle: 'Home' }}
+        />
+        <Stack.Screen
+          name="coaches"
+          options={{ title: 'Coach Explorer', headerBackTitle: 'Results' }}
+        />
+        <Stack.Screen
+          name="berths"
+          options={{ title: 'Berth Layout', headerBackTitle: 'Coaches' }}
+        />
+        <Stack.Screen
+          name="berth-detail"
+          options={{ title: 'Berth Details', presentation: 'modal', headerBackTitle: 'Back' }}
+        />
+        <Stack.Screen
+          name="settings"
+          options={{ title: 'Settings & Info', headerBackTitle: 'Back' }}
+        />
+      </Stack>
+    </NavigationContainer>
   );
 
   return (
@@ -113,7 +121,7 @@ export default function RootLayout() {
                   </View>
                 </View>
                 <View style={styles.screenContent}>
-                  <AuthGuard>{stackContent}</AuthGuard>
+                  {stackContent}
                 </View>
                 <View style={styles.homeBar}>
                   <View style={styles.homeIndicator} />
@@ -121,7 +129,7 @@ export default function RootLayout() {
               </View>
             </View>
           ) : (
-            <AuthGuard>{stackContent}</AuthGuard>
+            stackContent
           )}
         </AuthProvider>
       </QueryClientProvider>
@@ -135,6 +143,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg.primary,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingOverlay: {
+    backgroundColor: colors.bg.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
   },
   webOuter: {
     flex: 1,

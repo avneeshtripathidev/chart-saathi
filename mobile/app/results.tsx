@@ -20,6 +20,8 @@ import { CoachExplorerCard } from '../src/components/CoachExplorerCard';
 import { colors, spacing, borderRadius } from '../src/utils/theme';
 import type { TrainClass } from '../src/types';
 
+const VALID_CLASSES = new Set(['1A', '2A', '3A', 'SL', 'CC', '2S', 'FC', 'EC']);
+
 export default function ResultsScreen() {
   const params = useLocalSearchParams<{
     trainNumber: string;
@@ -32,9 +34,11 @@ export default function ResultsScreen() {
     viaStation?: string;
   }>();
 
-  const [selectedClass, setSelectedClass] = useState<TrainClass | undefined>(
-    params.trainClass ? (params.trainClass as TrainClass) : undefined,
-  );
+  const initialClass = params.trainClass && VALID_CLASSES.has(params.trainClass)
+    ? (params.trainClass as TrainClass)
+    : undefined;
+
+  const [selectedClass, setSelectedClass] = useState<TrainClass | undefined>(initialClass);
 
   const queryParams = {
     trainNumber: params.trainNumber,

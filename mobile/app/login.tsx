@@ -45,6 +45,7 @@ export default function LoginScreen() {
     sendEmailOtp,
     resetPasswordForEmail,
     setPendingEmail,
+    continueAsGuest,
   } = useAuth();
 
   // Mode: 'SIGN_IN' | 'REGISTER' | 'OTP'
@@ -589,6 +590,18 @@ export default function LoginScreen() {
                   : 'Or sign in with 6-digit Email Code'}
               </Text>
             </TouchableOpacity>
+
+            {/* Explore as Guest Option */}
+            <TouchableOpacity
+              style={styles.guestButton}
+              onPress={async () => {
+                await continueAsGuest();
+                router.replace('/');
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.guestButtonText}>Continue as Guest (Explore Charts) →</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Privacy & Security Footer */}
@@ -932,6 +945,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.xs,
     marginTop: spacing.xl,
+  },
+  guestButton: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 240, 233, 0.12)',
+  },
+  guestButtonText: {
+    color: colors.brand.roseStone,
+    fontSize: typography.fontSize.sm,
+    fontWeight: '700',
   },
   footerText: {
     color: colors.text.tertiary,
